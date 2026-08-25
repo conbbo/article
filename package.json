@@ -1,9 +1,9 @@
 {
   "name": "wordmagic",
-  "version": "1.0.0",
-  "description": "AI-driven English vocabulary learning desktop app for primary school students",
-  "main": "dist-electron/main.js",
-  "author": "WordMagic Team",
+  "version": "2.0.0",
+  "description": "AI-driven English vocabulary learning desktop app",
+  "main": "electron/main.js",
+  "author": "WordMagic",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.4",
+    "better-sqlite3": "^11.0.0",
     "concurrently": "^8.2.2",
     "electron": "^30.0.0",
     "electron-builder": "^24.13.3",
@@ -35,7 +36,7 @@
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "electron/**/*"
     ],
     "mac": {
       "category": "public.app-category.education"

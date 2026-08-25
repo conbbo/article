@@ -1,45 +1,40 @@
 <template>
   <div class="progress-view">
-    <h2>📊 My Progress</h2>
+    <h2>Progress</h2>
 
     <div class="stats-grid">
-      <div class="big-stat-card">
-        <span class="big-icon">📖</span>
-        <span class="big-value">{{ progress.learnedCount }}</span>
-        <span class="big-label">Words Learned</span>
+      <div class="stat-card card">
+        <span class="stat-value">{{ progress.learnedCount }}</span>
+        <span class="stat-label">Words Learned</span>
       </div>
-      <div class="big-stat-card">
-        <span class="big-icon">🎯</span>
-        <span class="big-value">{{ progress.accuracy }}%</span>
-        <span class="big-label">Accuracy</span>
+      <div class="stat-card card">
+        <span class="stat-value">{{ progress.accuracy }}%</span>
+        <span class="stat-label">Accuracy</span>
       </div>
-      <div class="big-stat-card">
-        <span class="big-icon">⭐</span>
-        <span class="big-value">{{ progress.totalScore }}</span>
-        <span class="big-label">Total Score</span>
+      <div class="stat-card card">
+        <span class="stat-value">{{ progress.totalScore }}</span>
+        <span class="stat-label">Total Score</span>
       </div>
-      <div class="big-stat-card">
-        <span class="big-icon">🔥</span>
-        <span class="big-value">{{ progress.streakDays }}</span>
-        <span class="big-label">Day Streak</span>
+      <div class="stat-card card">
+        <span class="stat-value">{{ progress.streakDays }}</span>
+        <span class="stat-label">Day Streak</span>
       </div>
     </div>
 
     <div class="section">
-      <h3>🏆 Achievements</h3>
+      <h3>Achievements</h3>
       <div class="achievements-grid">
-        <div v-for="a in allAchievements" :key="a.id"
-          :class="['achievement', { unlocked: progress.hasAchievement(a.id) }]">
+        <div v-for="a in allAchievements" :key="a.id" :class="['achievement', { unlocked: progress.hasAchievement(a.id) }]">
           <span class="ach-icon">{{ a.icon }}</span>
           <span class="ach-name">{{ a.name }}</span>
-          <span class="ach-status">{{ progress.hasAchievement(a.id) ? 'Unlocked!' : 'Locked' }}</span>
+          <span class="ach-status">{{ progress.hasAchievement(a.id) ? 'Unlocked' : 'Locked' }}</span>
         </div>
       </div>
     </div>
 
     <div class="section">
-      <h3>📈 Practice History</h3>
-      <div class="history-chart">
+      <h3>7-Day Activity</h3>
+      <div class="chart card">
         <div v-for="(day, i) in last7Days" :key="i" class="chart-bar-wrap">
           <div class="chart-bar" :style="{ height: barHeight(day.count) + 'px' }">
             <span class="bar-count" v-if="day.count > 0">{{ day.count }}</span>
@@ -50,12 +45,13 @@
     </div>
 
     <div class="section">
-      <h3>📝 Recent Activity</h3>
+      <h3>Recent Activity</h3>
       <div class="activity-list">
-        <div v-if="recentActivity.length === 0" class="empty">No activity yet. Start learning! 🚀</div>
+        <div v-if="recentActivity.length === 0" class="empty">No activity yet.</div>
         <div v-for="(act, i) in recentActivity" :key="i" class="activity-item">
-          <span class="act-icon">{{ act.correct ? '✅' : '❌' }}</span>
+          <span class="act-status" :class="{ correct: act.correct, wrong: !act.correct }">{{ act.correct ? 'Correct' : 'Wrong' }}</span>
           <span class="act-word">{{ act.word }}</span>
+          <span class="act-mode">{{ act.gameMode || 'unknown' }}</span>
           <span class="act-time">{{ formatTime(act.time) }}</span>
         </div>
       </div>
@@ -64,13 +60,13 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useProgressStore } from '../stores/progress'
 
 const progress = useProgressStore()
 
 const allAchievements = [
-  { id: 'first_word', name: 'First Word!', icon: '🌱' },
+  { id: 'first_word', name: 'First Word', icon: '🌱' },
   { id: 'ten_words', name: 'Word Explorer', icon: '🌟' },
   { id: 'fifty_words', name: 'Word Master', icon: '🏆' },
   { id: 'streak_3', name: '3-Day Streak', icon: '🔥' },
@@ -81,130 +77,64 @@ const allAchievements = [
 
 const last7Days = computed(() => {
   const days = []
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   for (let i = 6; i >= 0; i--) {
     const date = new Date()
     date.setDate(date.getDate() - i)
     const dateStr = date.toDateString()
-    const count = progress.practiceHistory.filter(p =>
-      new Date(p.time).toDateString() === dateStr
-    ).length
-    days.push({ label: dayNames[date.getDay()], count })
+    const count = progress.practiceHistory.filter(p => new Date(p.time).toDateString() === dateStr).length
+    days.push({ label: labels[date.getDay()], count })
   }
   return days
 })
 
-const recentActivity = computed(() => {
-  return [...progress.practiceHistory].reverse().slice(0, 15)
-})
+const recentActivity = computed(() => [...progress.practiceHistory].reverse().slice(0, 15))
 
 function barHeight(count) {
   const max = Math.max(...last7Days.value.map(d => d.count), 1)
-  return Math.max((count / max) * 120, 4)
+  return Math.max((count / max) * 100, 3)
 }
 
 function formatTime(time) {
   const d = new Date(time)
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
 }
+
+onMounted(() => progress.init())
 </script>
 
 <style scoped>
-.progress-view { max-width: 800px; margin: 0 auto; }
+.progress-view { max-width: 700px; margin: 0 auto; }
+h2 { font-size: 22px; font-weight: 700; margin-bottom: 16px; }
 
-h2 { font-size: 28px; font-weight: 800; color: var(--color-primary); margin-bottom: 24px; }
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+.stat-card { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 16px; }
+.stat-value { font-size: 24px; font-weight: 700; color: var(--color-primary); }
+.stat-label { font-size: 12px; color: var(--color-text-light); }
 
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 32px;
-}
+.section { margin-bottom: 24px; }
+.section h3 { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
 
-.big-stat-card {
-  background: var(--color-card);
-  border-radius: var(--radius);
-  padding: 24px;
-  text-align: center;
-  box-shadow: var(--shadow);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.big-icon { font-size: 40px; }
-.big-value { font-size: 32px; font-weight: 800; color: var(--color-primary); }
-.big-label { font-size: 13px; color: var(--color-text-light); }
-
-.section { margin-bottom: 32px; }
-.section h3 { font-size: 20px; font-weight: 700; margin-bottom: 16px; }
-
-.achievements-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
-
-.achievement {
-  background: var(--color-card);
-  border-radius: var(--radius-sm);
-  padding: 16px;
-  text-align: center;
-  box-shadow: var(--shadow);
-  opacity: 0.4;
-  filter: grayscale(1);
-  transition: all 0.3s ease;
-}
-
+.achievements-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.achievement { background: white; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 12px; text-align: center; opacity: 0.4; filter: grayscale(1); transition: all 0.2s ease; }
 .achievement.unlocked { opacity: 1; filter: none; }
+.ach-icon { font-size: 28px; display: block; }
+.ach-name { font-size: 12px; font-weight: 600; display: block; margin-top: 4px; }
+.ach-status { font-size: 11px; color: var(--color-text-muted); }
 
-.ach-icon { font-size: 36px; display: block; }
-.ach-name { font-size: 14px; font-weight: 700; display: block; margin-top: 6px; }
-.ach-status { font-size: 11px; color: var(--color-text-light); }
+.chart { display: flex; align-items: flex-end; justify-content: space-around; height: 160px; padding: 20px 16px 12px; }
+.chart-bar-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.chart-bar { width: 28px; background: var(--color-primary); border-radius: 4px 4px 2px 2px; display: flex; align-items: flex-start; justify-content: center; padding-top: 3px; min-height: 3px; transition: height 0.3s ease; }
+.bar-count { font-size: 11px; font-weight: 600; color: white; }
+.bar-label { font-size: 11px; color: var(--color-text-light); }
 
-.history-chart {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-around;
-  height: 180px;
-  background: var(--color-card);
-  border-radius: var(--radius);
-  padding: 24px 16px 16px;
-  box-shadow: var(--shadow);
-}
-
-.chart-bar-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-
-.chart-bar {
-  width: 36px;
-  background: linear-gradient(180deg, var(--color-primary), var(--color-primary-light));
-  border-radius: 8px 8px 4px 4px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 4px;
-  min-height: 4px;
-  transition: height 0.3s ease;
-}
-
-.bar-count { font-size: 12px; font-weight: 700; color: white; }
-.bar-label { font-size: 12px; color: var(--color-text-light); }
-
-.activity-list { display: flex; flex-direction: column; gap: 6px; }
-.empty { text-align: center; color: var(--color-text-light); padding: 24px; }
-
-.activity-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  background: var(--color-card);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-}
-
-.act-icon { font-size: 18px; }
-.act-word { font-weight: 700; flex: 1; }
-.act-time { font-size: 13px; color: var(--color-text-light); }
+.activity-list { display: flex; flex-direction: column; gap: 4px; }
+.empty { text-align: center; color: var(--color-text-muted); padding: 20px; font-size: 14px; }
+.activity-item { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: white; border: 1px solid var(--color-border); border-radius: var(--radius-xs); font-size: 13px; }
+.act-status { font-weight: 600; min-width: 50px; }
+.act-status.correct { color: var(--color-success); }
+.act-status.wrong { color: var(--color-danger); }
+.act-word { font-weight: 600; flex: 1; }
+.act-mode { color: var(--color-text-muted); font-size: 12px; text-transform: capitalize; }
+.act-time { color: var(--color-text-muted); font-size: 12px; }
 </style>

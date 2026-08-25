@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia'
 
-const STORAGE_KEY = 'wordmagic-progress'
+const STORAGE_KEY = 'wordmagic-progress-fallback'
 
-function loadProgress() {
+const isElectron = () => !!window.electronAPI
+
+function loadFallback() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) return JSON.parse(raw)
@@ -10,7 +12,7 @@ function loadProgress() {
   return null
 }
 
-function defaultProgress() {
+function defaultState() {
   return {
     learnedWords: [],
     correctCount: 0,
@@ -22,26 +24,21 @@ function defaultProgress() {
     practiceHistory: [],
     dailyGoal: 10,
     todayLearned: 0,
-    todayDate: new Date().toDateString()
+    todayDate: new Date().toDateString(),
+    dailyWordCount: 10,
+    dailyQuestionCount: 20,
+    initialized: false
   }
 }
 
 export const useProgressStore = defineStore('progress', {
   state: () => {
-    const saved = loadProgress()
-    const base = defaultProgress()
+    const saved = loadFallback()
+    const base = defaultState()
     if (saved) {
-      // Reset daily count if new day
       if (saved.todayDate !== new Date().toDateString()) {
         saved.todayLearned = 0
         saved.todayDate = new Date().toDateString()
-      }
-      // Streak check
-      const yesterday = new Date()
-      yesterday.setDate(yesterday.getDate() - 1)
-      if (saved.lastStudyDate !== new Date().toDateString() &&
-          saved.lastStudyDate !== yesterday.toDateString()) {
-        saved.streakDays = 1
       }
       return { ...base, ...saved }
     }
@@ -59,44 +56,63 @@ export const useProgressStore = defineStore('progress', {
   },
 
   actions: {
-    save() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.$state))
+    async init() {
+      if (this.initialized) return
+      if (isElectron()) {
+        const [learned, stats] = await Promise.all([
+          window.electronAPI.getLearnedWords(),
+          window.electronAPI.getStats()
+        ])
+        this.learnedWords = learned || []
+        this.correctCount = stats.correct || 0
+        this.wrongCount = stats.wrong || 0
+        this.totalScore = (stats.correct || 0) * 10
+      }
+      this.initialized = true
+      this.updateStreak()
     },
 
-    markLearned(word) {
+    saveFallback() {
+      if (!isElectron()) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.$state))
+      }
+    },
+
+    async markLearned(word) {
       if (!this.learnedWords.includes(word)) {
         this.learnedWords.push(word)
         this.todayLearned++
         this.checkAchievements()
-        this.save()
       }
+      if (isElectron()) {
+        await window.electronAPI.markLearned(word)
+      }
+      this.saveFallback()
     },
 
-    recordAnswer(correct, word) {
+    async recordAnswer(correct, word, gameMode = 'unknown') {
       if (correct) {
         this.correctCount++
         this.totalScore += 10
-        this.markLearned(word)
+        await this.markLearned(word)
       } else {
         this.wrongCount++
       }
       this.lastStudyDate = new Date().toDateString()
-      this.practiceHistory.push({
-        word,
-        correct,
-        time: Date.now()
-      })
-      // Keep last 200 records
+      this.practiceHistory.push({ word, correct, gameMode, time: Date.now() })
       if (this.practiceHistory.length > 200) {
         this.practiceHistory = this.practiceHistory.slice(-200)
       }
+      if (isElectron()) {
+        await window.electronAPI.recordPractice(word, gameMode, correct)
+      }
       this.checkAchievements()
-      this.save()
+      this.saveFallback()
     },
 
     checkAchievements() {
-      const allAchievements = [
-        { id: 'first_word', name: 'First Word!', icon: '🌱', condition: () => this.learnedCount >= 1 },
+      const all = [
+        { id: 'first_word', name: 'First Word', icon: '🌱', condition: () => this.learnedCount >= 1 },
         { id: 'ten_words', name: 'Word Explorer', icon: '🌟', condition: () => this.learnedCount >= 10 },
         { id: 'fifty_words', name: 'Word Master', icon: '🏆', condition: () => this.learnedCount >= 50 },
         { id: 'streak_3', name: '3-Day Streak', icon: '🔥', condition: () => this.streakDays >= 3 },
@@ -104,7 +120,7 @@ export const useProgressStore = defineStore('progress', {
         { id: 'score_100', name: 'Century Club', icon: '🎖️', condition: () => this.totalScore >= 100 },
         { id: 'score_500', name: 'Word Wizard', icon: '🧙', condition: () => this.totalScore >= 500 }
       ]
-      for (const a of allAchievements) {
+      for (const a of all) {
         if (!this.achievements.includes(a.id) && a.condition()) {
           this.achievements.push(a.id)
         }
@@ -118,18 +134,27 @@ export const useProgressStore = defineStore('progress', {
         yesterday.setDate(yesterday.getDate() - 1)
         if (this.lastStudyDate === yesterday.toDateString()) {
           this.streakDays++
-        } else {
+        } else if (this.lastStudyDate !== today) {
           this.streakDays = 1
         }
         this.lastStudyDate = today
-        this.save()
       }
     },
 
-    reset() {
-      const fresh = defaultProgress()
+    async reset() {
+      if (isElectron()) {
+        await window.electronAPI.resetProgress()
+      }
+      const fresh = defaultState()
+      fresh.initialized = true
       this.$state = fresh
-      this.save()
+      this.saveFallback()
+    },
+
+    setDailyConfig(words, questions) {
+      this.dailyWordCount = words
+      this.dailyQuestionCount = questions
+      this.saveFallback()
     }
   }
 })
