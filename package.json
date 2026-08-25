@@ -2,7 +2,7 @@
   "name": "wordmagic",
   "version": "2.0.0",
   "description": "AI-driven English vocabulary learning desktop app",
-  "main": "electron/main.js",
+  "main": "electron/main.cjs",
   "author": "WordMagic",
   "license": "MIT",
   "type": "module",

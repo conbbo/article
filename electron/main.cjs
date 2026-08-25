@@ -6,13 +6,17 @@ const isDev = !app.isPackaged
 let mainWindow
 let db = null
 
+// Service layer (backend logic)
+const learningEngine = require('./services/learningEngine.cjs')
+const analytics = require('./services/analytics.cjs')
+const recommendation = require('./services/recommendation.cjs')
+
 function initDatabase() {
   const Database = require('better-sqlite3')
   const dataPath = path.join(app.getPath('userData'), 'wordmagic-data')
   if (!fs.existsSync(dataPath)) fs.mkdirSync(dataPath, { recursive: true })
   const dbPath = path.join(dataPath, 'wordmagic.db')
   db = new Database(dbPath)
-
   db.pragma('journal_mode = WAL')
 
   db.exec(`
@@ -57,13 +61,24 @@ function initDatabase() {
       completed INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS srs_data (
+      word TEXT PRIMARY KEY,
+      interval INTEGER DEFAULT 0,
+      repetitions INTEGER DEFAULT 0,
+      ease_factor REAL DEFAULT 2.5,
+      next_review_date TEXT,
+      mastery_level INTEGER DEFAULT 0,
+      last_reviewed TEXT,
+      mastery_score INTEGER DEFAULT 0
+    );
   `)
 
   // Seed built-in words if empty
   const count = db.prepare('SELECT COUNT(*) as c FROM words WHERE is_custom = 0').get()
   if (count.c === 0) {
     const insert = db.prepare('INSERT INTO words (word, phonetic, meaning, example, example_cn, level) VALUES (?, ?, ?, ?, ?, ?)')
-    const seed = require('./seedWords.js')
+    const seed = require('./seedWords.cjs')
     for (const w of seed) {
       insert.run(w.word, w.phonetic, w.meaning, w.example, w.exampleCn, w.level)
     }
@@ -80,7 +95,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.cjs')
     }
   })
 
@@ -91,7 +106,7 @@ function createWindow() {
   }
 }
 
-// --- IPC: Database operations ---
+// ===================== IPC: Basic CRUD =====================
 
 ipcMain.handle('db-get-words', (e, level) => {
   if (level) return db.prepare('SELECT * FROM words WHERE level = ? ORDER BY id').all(level)
@@ -112,7 +127,7 @@ ipcMain.handle('db-mark-learned', (e, word) => {
 })
 
 ipcMain.handle('db-get-learned-words', () => {
-  return db.prepare('SELECT word FROM learned_words').all().map(r => r.word)
+  return db.prepare('SELECT word, learned_at FROM learned_words').all()
 })
 
 ipcMain.handle('db-record-practice', (e, word, gameMode, correct) => {
@@ -120,6 +135,21 @@ ipcMain.handle('db-record-practice', (e, word, gameMode, correct) => {
   if (correct) {
     db.prepare('INSERT OR IGNORE INTO learned_words (word) VALUES (?)').run(word)
   }
+
+  // Update SRS data using the learning engine
+  const existingSrs = db.prepare('SELECT * FROM srs_data WHERE word = ?').get(word)
+  const currentSrs = existingSrs || { interval: 0, repetitions: 0, easeFactor: 2.5 }
+  const updatedSrs = learningEngine.calculateNextReview(currentSrs, correct)
+
+  // Calculate mastery score from practice history
+  const practices = db.prepare('SELECT * FROM practice_records WHERE word = ? ORDER BY practiced_at DESC LIMIT 20').all(word)
+  const masteryScore = learningEngine.calculateMasteryScore(practices, updatedSrs)
+
+  db.prepare(`
+    INSERT OR REPLACE INTO srs_data (word, interval, repetitions, ease_factor, next_review_date, mastery_level, last_reviewed, mastery_score)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(word, updatedSrs.interval, updatedSrs.repetitions, updatedSrs.easeFactor,
+       updatedSrs.nextReviewDate, updatedSrs.masteryLevel, updatedSrs.lastReviewed, masteryScore)
 })
 
 ipcMain.handle('db-get-practice-records', () => {
@@ -160,6 +190,7 @@ ipcMain.handle('db-reset-progress', () => {
   db.prepare('DELETE FROM learned_words').run()
   db.prepare('DELETE FROM practice_records').run()
   db.prepare('DELETE FROM study_sessions').run()
+  db.prepare('DELETE FROM srs_data').run()
 })
 
 ipcMain.handle('db-create-session', (e, date) => {
@@ -182,7 +213,81 @@ ipcMain.handle('db-get-today-session', (e, date) => {
   return db.prepare('SELECT * FROM study_sessions WHERE session_date = ?').get(date)
 })
 
-// --- IPC: Image cache ---
+// ===================== IPC: Learning Engine (SRS) =====================
+
+ipcMain.handle('engine-get-srs', (e, word) => {
+  return db.prepare('SELECT * FROM srs_data WHERE word = ?').get(word) || null
+})
+
+ipcMain.handle('engine-get-all-srs', () => {
+  return db.prepare('SELECT * FROM srs_data').all()
+})
+
+ipcMain.handle('engine-get-due-words', () => {
+  const now = new Date().toISOString()
+  return db.prepare('SELECT * FROM srs_data WHERE next_review_date <= ?').all(now)
+})
+
+ipcMain.handle('engine-get-mastery-map', () => {
+  const rows = db.prepare('SELECT word, mastery_score, mastery_level, interval, repetitions, next_review_date FROM srs_data').all()
+  const map = {}
+  for (const r of rows) {
+    map[r.word] = r
+  }
+  return map
+})
+
+// ===================== IPC: Analytics =====================
+
+ipcMain.handle('analytics-learning-curve', (e, days = 30) => {
+  const records = db.prepare('SELECT * FROM practice_records ORDER BY practiced_at ASC').all()
+  const learned = db.prepare('SELECT word, learned_at FROM learned_words').all()
+  return analytics.computeLearningCurve(records, learned, days)
+})
+
+ipcMain.handle('analytics-weak-words', () => {
+  const records = db.prepare('SELECT * FROM practice_records ORDER BY practiced_at DESC').all()
+  return analytics.detectWeakWords(records)
+})
+
+ipcMain.handle('analytics-trend', () => {
+  const records = db.prepare('SELECT * FROM practice_records ORDER BY practiced_at DESC').all()
+  return analytics.computeTrend(records)
+})
+
+ipcMain.handle('analytics-summary', () => {
+  const records = db.prepare('SELECT * FROM practice_records ORDER BY practiced_at DESC').all()
+  const learned = db.prepare('SELECT word, learned_at FROM learned_words').all()
+  const srsRows = db.prepare('SELECT word, mastery_score FROM srs_data').all()
+  const masteryScores = srsRows.map(r => ({ word: r.word, score: r.mastery_score || 0 }))
+  return analytics.computeSummary(records, learned, masteryScores)
+})
+
+// ===================== IPC: Recommendation Engine =====================
+
+ipcMain.handle('recommend-words', (e, count, level) => {
+  const allWords = db.prepare('SELECT * FROM words').all()
+  const learned = db.prepare('SELECT word FROM learned_words').all().map(r => r.word)
+  const srsRows = db.prepare('SELECT * FROM srs_data').all()
+  const srsMap = {}
+  for (const r of srsRows) srsMap[r.word] = r
+  const records = db.prepare('SELECT * FROM practice_records ORDER BY practiced_at DESC').all()
+  const weakWords = analytics.detectWeakWords(records)
+
+  return recommendation.recommendWords(allWords, learned, srsMap, records, weakWords, count, level)
+})
+
+ipcMain.handle('recommend-questions', (e, sessionWords, questionCount) => {
+  const records = db.prepare('SELECT * FROM practice_records ORDER BY practiced_at DESC').all()
+  return recommendation.recommendQuestions(sessionWords, questionCount || 20, records)
+})
+
+ipcMain.handle('recommend-level', (e, currentLevel) => {
+  const records = db.prepare('SELECT * FROM practice_records ORDER BY practiced_at DESC').all()
+  return recommendation.recommendLevel(currentLevel, records)
+})
+
+// ===================== IPC: Image Cache =====================
 
 ipcMain.handle('download-image', async (event, { url, word }) => {
   try {
