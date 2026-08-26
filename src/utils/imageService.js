@@ -1,43 +1,37 @@
-// Image search service - searches for word images and caches locally
-// Uses Unsplash Source API (free, no key needed) as fallback
-// In Electron mode, downloads and caches via IPC
+// Image service — uses Lorem Picsum (reliable, no key needed) with deterministic per-word seeds
+// In Electron mode, downloads and caches via IPC for offline reuse
 
 const imageCache = new Map()
 
 export async function getWordImage(word) {
-  // Check in-memory cache
   if (imageCache.has(word)) {
     return imageCache.get(word)
   }
 
-  // Check if running in Electron with local cache
+  // Generate a deterministic seed from the word so each word always gets the same image
+  let seed = 0
+  for (let i = 0; i < word.length; i++) {
+    seed = ((seed << 5) - seed) + word.charCodeAt(i)
+    seed = seed & 0x7fffffff
+  }
+
+  // Use Picsum (always works, no rate limits, no key needed)
+  const url = `https://picsum.photos/seed/${seed}/400/300`
+
+  // In Electron mode, try to download and cache locally
   if (window.electronAPI) {
     try {
-      const localPath = await window.electronAPI.downloadImage({
-        url: `https://source.unsplash.com/400x300/?${encodeURIComponent(word)}`,
-        word: word
-      })
+      const localPath = await window.electronAPI.downloadImage({ url, word })
       if (localPath) {
-        const url = `file://${localPath}`
-        imageCache.set(word, url)
-        return url
+        const localUrl = `file://${localPath}`
+        imageCache.set(word, localUrl)
+        return localUrl
       }
     } catch (e) {
-      console.warn('Electron image download failed, falling back to online')
+      // fall through to online URL
     }
   }
 
-  // Fallback: use Unsplash source URL directly (online mode)
-  const url = `https://source.unsplash.com/400x300/?${encodeURIComponent(word)}`
-  imageCache.set(word, url)
-  return url
-}
-
-// Alternative: use a more reliable free image API
-export async function getWordImageAlt(word) {
-  // Using picsum as a reliable placeholder image service
-  const seed = word.charCodeAt(0) + word.length
-  const url = `https://picsum.photos/seed/${seed}/400/300`
   imageCache.set(word, url)
   return url
 }

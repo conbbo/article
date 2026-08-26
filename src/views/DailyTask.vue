@@ -3,7 +3,7 @@
     <!-- Pre-session config -->
     <div v-if="phase === 'config'" class="config-phase fade-in">
       <h2>Daily Task</h2>
-      <p class="subtitle">The engine selects words and game modes based on your learning history.</p>
+      <p class="subtitle">{{ t('daily.subtitle').value }}</p>
 
       <div v-if="levelRec" class="level-rec card">
         <p v-if="levelRec.suggestion === 'advance'">Trend: {{ levelRec.reason }}. Consider advancing to the next level.</p>
@@ -13,7 +13,7 @@
 
       <div class="config-card card">
         <div class="config-row">
-          <label>Word Level</label>
+          <label>{{ t('daily.wordLevel').value }}</label>
           <select v-model="configLevel" class="config-select">
             <option v-for="key in levelKeys" :key="key" :value="key">
               {{ cambridgeWordBank[key].level }} ({{ cambridgeWordBank[key].cefr }})
@@ -21,7 +21,7 @@
           </select>
         </div>
         <div class="config-row">
-          <label>Words to Learn</label>
+          <label>{{ t('daily.wordsToLearn').value }}</label>
           <div class="number-control">
             <button @click="configWords = Math.max(3, configWords - 1)">-</button>
             <span class="number-value">{{ configWords }}</span>
@@ -29,7 +29,7 @@
           </div>
         </div>
         <div class="config-row">
-          <label>Practice Questions</label>
+          <label>{{ t('daily.practiceQuestions').value }}</label>
           <div class="number-control">
             <button @click="configQuestions = Math.max(5, configQuestions - 5)">-</button>
             <span class="number-value">{{ configQuestions }}</span>
@@ -40,7 +40,7 @@
           <p>{{ configWords }} words (engine-recommended) + {{ configQuestions }} adaptive questions</p>
           <p class="hint">Words due for review are prioritized. Game modes adapt to your weaknesses.</p>
         </div>
-        <button class="btn-primary start-btn" @click="startSession">Start Session</button>
+        <button class="btn-primary start-btn" @click="startSession">{{ t('daily.start').value }}</button>
       </div>
     </div>
 
@@ -68,8 +68,8 @@
           <h1 class="word-text">{{ currentWord?.word }}</h1>
           <p class="word-phonetic">{{ currentWord?.phonetic }}</p>
           <div class="word-actions">
-            <button class="btn-secondary" @click="speak(currentWord?.word, settings.ttsRate)">Pronounce</button>
-            <button class="btn-secondary" @click="speak(currentWord?.example, settings.ttsRate)">Example</button>
+            <button class="btn-secondary" @click="speak(currentWord?.word, settings.ttsRate)">{{ t('daily.pronounce').value }}</button>
+            <button class="btn-secondary" @click="speak(currentWord?.example, settings.ttsRate)">{{ t('daily.example').value }}</button>
           </div>
           <div class="word-detail">
             <p class="word-meaning">{{ currentWord?.meaning }}</p>
@@ -77,7 +77,7 @@
             <p class="word-example-cn">{{ currentWord?.exampleCn }}</p>
           </div>
           <button class="btn-primary next-word-btn" @click="nextLearnWord">
-            {{ learnIndex < sessionWords.length - 1 ? 'Next Word' : 'Start Practice' }}
+            {{ learnIndex < sessionWords.length - 1 ? t('daily.nextWord').value : t('daily.startPractice').value }}
           </button>
         </div>
       </div>
@@ -97,13 +97,13 @@
 
       <div v-if="practiceLoading" class="loading-state">
         <div class="spinner"></div>
-        <p>Generating question...</p>
+        <p>{{ t('daily.generating').value }}</p>
       </div>
 
       <div v-else-if="currentQuestion" class="question-area slide-in">
         <!-- Cloze -->
         <div v-if="currentGameMode === 'cloze'" class="game-content">
-          <p class="game-instruction">Fill in the blank:</p>
+          <p class="game-instruction">{{ t('daily.fillBlank').value }}</p>
           <div class="cloze-sentence" v-html="clozeDisplay"></div>
           <div class="options-grid">
             <button v-for="opt in currentQuestion.options" :key="opt"
@@ -129,8 +129,8 @@
             </button>
           </div>
           <div class="spelling-controls">
-            <button class="btn-secondary" @click="removeLetter" :disabled="answered">Backspace</button>
-            <button class="btn-primary" @click="submitSpelling" :disabled="spelledLetters.length === 0 || answered">Submit</button>
+            <button class="btn-secondary" @click="removeLetter" :disabled="answered">{{ t('daily.backspace').value }}</button>
+            <button class="btn-primary" @click="submitSpelling" :disabled="spelledLetters.length === 0 || answered">{{ t('daily.submit').value }}</button>
           </div>
         </div>
 
@@ -139,7 +139,7 @@
           <p class="game-instruction">{{ currentQuestion.question }}</p>
           <div class="image-display">
             <img v-if="currentImageUrl" :src="currentImageUrl" :alt="currentQuestion.word" @error="currentImageUrl = ''" />
-            <span v-else class="img-placeholder">No image</span>
+            <span v-else class="img-placeholder">{{ t('daily.noImage').value }}</span>
           </div>
           <div class="options-grid">
             <button v-for="opt in currentQuestion.options" :key="opt"
@@ -153,7 +153,7 @@
         <!-- Feedback -->
         <transition name="fade">
           <div v-if="showFeedback" class="feedback-bar" :class="feedbackType">
-            <span v-if="feedbackType === 'correct'">Correct! +10 points</span>
+            <span v-if="feedbackType === 'correct'">{{ t('daily.correct').value }}</span>
             <span v-else>Wrong. Answer: {{ currentQuestion.answer }}</span>
           </div>
         </transition>
@@ -163,7 +163,7 @@
     <!-- Phase: Complete -->
     <div v-else-if="phase === 'complete'" class="complete-phase fade-in">
       <div class="complete-card card">
-        <h2>Session Complete</h2>
+        <h2>{{ t('daily.complete').value }}</h2>
         <div class="complete-stats">
           <div class="cs-item">
             <span class="cs-value">{{ sessionWords.length }}</span>
@@ -183,8 +183,8 @@
           </div>
         </div>
         <div class="complete-actions">
-          <button class="btn-secondary" @click="goHome">Dashboard</button>
-          <button class="btn-primary" @click="resetSession">New Session</button>
+          <button class="btn-secondary" @click="goHome">{{ t('daily.dashboard').value }}</button>
+          <button class="btn-primary" @click="resetSession">{{ t('daily.newSession').value }}</button>
         </div>
       </div>
     </div>
@@ -200,10 +200,12 @@ import { useProgressStore } from '../stores/progress'
 import { generateCloze, generateSpelling, generateImageDescription } from '../utils/aiService'
 import { getWordImage } from '../utils/imageService'
 import { speak } from '../utils/tts'
+import { useI18n } from '../i18n'
 
 const router = useRouter()
 const settings = useSettingsStore()
 const progress = useProgressStore()
+const { t } = useI18n()
 
 const phase = ref('config')
 const configLevel = ref('starters')

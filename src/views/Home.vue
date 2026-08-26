@@ -2,8 +2,8 @@
   <div class="home">
     <div class="hero fade-in">
       <div class="hero-text">
-        <h1>Learn English smarter</h1>
-        <p>AI-powered vocabulary with spaced repetition and adaptive practice.</p>
+        <h1>{{ t('home.title').value }}</h1>
+        <p>{{ t('home.subtitle').value }}</p>
       </div>
       <div class="hero-action">
         <button class="btn-primary hero-btn" @click="$router.push('/daily')">
@@ -18,39 +18,39 @@
         <div class="stat-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
         <div class="stat-body">
           <span class="stat-value">{{ progress.learnedCount }}</span>
-          <span class="stat-label">Words Learned</span>
+          <span class="stat-label">{{ t('home.wordsLearned').value }}</span>
         </div>
       </div>
       <div class="stat-card stat-2 fade-in">
         <div class="stat-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
         <div class="stat-body">
           <span class="stat-value">{{ progress.accuracy }}%</span>
-          <span class="stat-label">Accuracy</span>
+          <span class="stat-label">{{ t('home.accuracy').value }}</span>
         </div>
       </div>
       <div class="stat-card stat-3 fade-in">
         <div class="stat-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
         <div class="stat-body">
           <span class="stat-value">{{ progress.totalScore }}</span>
-          <span class="stat-label">Total Score</span>
+          <span class="stat-label">{{ t('home.totalScore').value }}</span>
         </div>
       </div>
       <div class="stat-card stat-4 fade-in">
         <div class="stat-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg></div>
         <div class="stat-body">
           <span class="stat-value">{{ progress.streakDays }}</span>
-          <span class="stat-label">Day Streak</span>
+          <span class="stat-label">{{ t('home.dayStreak').value }}</span>
         </div>
       </div>
     </div>
 
     <div class="daily-section fade-in">
       <div class="daily-info">
-        <h3>Today's Goal</h3>
+        <h3>{{ t('home.todaysGoal').value }}</h3>
         <p v-if="progress.todayLearned < progress.dailyGoal">
-          {{ progress.todayLearned }} / {{ progress.dailyGoal }} words completed
+          {{ progress.todayLearned }} / {{ progress.dailyGoal }} {{ t('home.wordsCompleted').value }}
         </p>
-        <p v-else class="done">Daily goal achieved!</p>
+        <p v-else class="done">{{ t('home.goalAchieved').value }}</p>
         <div class="daily-bar">
           <div class="daily-fill" :style="{ width: Math.min(progress.todayLearned / progress.dailyGoal * 100, 100) + '%' }"></div>
         </div>
@@ -63,8 +63,8 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
         <div class="menu-body">
-          <h3>Daily Task</h3>
-          <p>Learn words and practice with adaptive games</p>
+          <h3>{{ t('home.dailyTask').value }}</h3>
+          <p>{{ t('home.dailyTaskDesc').value }}</p>
         </div>
       </div>
       <div class="menu-card menu-2 scale-in" @click="$router.push('/wordbank')">
@@ -72,8 +72,8 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
         </div>
         <div class="menu-body">
-          <h3>Word Bank</h3>
-          <p>Browse Cambridge graded vocabulary</p>
+          <h3>{{ t('home.wordBank').value }}</h3>
+          <p>{{ t('home.wordBankDesc').value }}</p>
         </div>
       </div>
       <div class="menu-card menu-3 scale-in" @click="$router.push('/progress')">
@@ -81,8 +81,8 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         </div>
         <div class="menu-body">
-          <h3>Progress</h3>
-          <p>Learning curve, trends, and achievements</p>
+          <h3>{{ t('home.progress').value }}</h3>
+          <p>{{ t('home.progressDesc').value }}</p>
         </div>
       </div>
       <div class="menu-card menu-4 scale-in" @click="$router.push('/settings')">
@@ -90,8 +90,8 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </div>
         <div class="menu-body">
-          <h3>Settings</h3>
-          <p>Configure AI provider and preferences</p>
+          <h3>{{ t('home.settings').value }}</h3>
+          <p>{{ t('home.settingsDesc').value }}</p>
         </div>
       </div>
     </div>
@@ -102,9 +102,11 @@
 import { onMounted } from 'vue'
 import { useProgressStore } from '../stores/progress'
 import { useSettingsStore } from '../stores/settings'
+import { useI18n } from '../i18n'
 
 const progress = useProgressStore()
 const settings = useSettingsStore()
+const { t } = useI18n()
 
 onMounted(async () => {
   await Promise.all([progress.init(), settings.init()])
