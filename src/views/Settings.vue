@@ -33,6 +33,8 @@
         <input type="password" v-model="apiKeyInput" class="text-input" placeholder="Leave empty if not required" />
       </div>
       <button class="btn-primary" @click="saveLocalConfig">Save Configuration</button>
+      <button class="btn-secondary" @click="testAI">Test Connection</button>
+      <p class="ai-status" v-if="aiTestResult" :class="aiTestOk ? 'ok' : 'fail'">{{ aiTestResult }}</p>
     </div>
 
     <div v-else class="section card">
@@ -40,6 +42,8 @@
       <p class="desc">Enter your API key for {{ providers[settings.apiProvider]?.name }}.</p>
       <input type="password" v-model="apiKeyInput" class="text-input" :placeholder="`Enter ${providers[settings.apiProvider]?.name} API key`" />
       <button class="btn-primary" @click="saveKey">Save Key</button>
+      <button class="btn-secondary" @click="testAI">Test Connection</button>
+      <p class="ai-status" v-if="aiTestResult" :class="aiTestOk ? 'ok' : 'fail'">{{ aiTestResult }}</p>
       <p class="key-status" v-if="settings.apiKey">API key saved.</p>
     </div>
 
@@ -73,6 +77,7 @@ import { ref, onMounted } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import { useProgressStore } from '../stores/progress'
 import { getProviderInfo } from '../utils/aiService'
+import { callAI } from '../utils/aiService'
 import { speak } from '../utils/tts'
 
 const settings = useSettingsStore()
@@ -83,6 +88,8 @@ const apiKeyInput = ref('')
 const baseUrlInput = ref('http://localhost:11434/v1')
 const modelInput = ref('gpt-4o-mini')
 const rateInput = ref(0.9)
+const aiTestResult = ref('')
+const aiTestOk = ref(false)
 
 function selectProvider(key) {
   settings.updateProvider(key)
@@ -103,6 +110,21 @@ function saveLocalConfig() {
   settings.updateApiBaseUrl(baseUrlInput.value.trim())
   settings.updateApiModel(modelInput.value.trim())
   settings.updateApiKey(apiKeyInput.value.trim())
+}
+
+async function testAI() {
+  aiTestResult.value = 'Testing...'
+  aiTestOk.value = false
+  try {
+    const result = await callAI(settings.apiProvider, settings.apiKey, [
+      { role: 'user', content: 'Say "hello" in one word.' }
+    ], settings.apiBaseUrl, settings.apiModel)
+    aiTestResult.value = 'Connected! AI responded: ' + result.substring(0, 50)
+    aiTestOk.value = true
+  } catch (e) {
+    aiTestResult.value = 'Failed: ' + e.message
+    aiTestOk.value = false
+  }
 }
 
 function saveRate() {
@@ -148,6 +170,9 @@ h2 { font-size: 22px; font-weight: 700; margin-bottom: 16px; }
 .text-input { width: 100%; padding: 8px 12px; border: 1px solid var(--color-border-dark); border-radius: var(--radius-sm); font-size: 14px; }
 .field-hint { font-size: 12px; color: var(--color-text-muted); margin-top: 4px; }
 .key-status { color: var(--color-success); font-weight: 500; margin-top: 8px; font-size: 13px; }
+.ai-status { margin-top: 8px; font-size: 13px; font-weight: 500; }
+.ai-status.ok { color: var(--color-success); }
+.ai-status.fail { color: var(--color-danger); }
 
 .field-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .field-row label { font-weight: 600; font-size: 13px; min-width: 80px; }

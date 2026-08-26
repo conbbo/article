@@ -239,6 +239,7 @@ import { cambridgeWordBank, levelKeys } from '../data/wordBank'
 import { useSettingsStore } from '../stores/settings'
 import { useProgressStore } from '../stores/progress'
 import { generateCloze, generateSpelling, generateImageDescription } from '../utils/aiService'
+import { generateWordOrder, generateListening } from '../utils/aiService'
 import { getWordImage } from '../utils/imageService'
 import { speak } from '../utils/tts'
 import { useI18n } from '../i18n'
@@ -306,7 +307,23 @@ function generateDistractors(word, count = 3) {
 function generateLocalQuestion(mode, wordObj) {
   const word = wordObj.word
   if (mode === 'cloze') {
-    const sentence = (wordObj.example || '').replace(new RegExp(word, 'i'), '___')
+    const clozeTemplates = [
+      `I saw a ${word} yesterday.`,
+      `The ${word} is on the table.`,
+      `She has a new ${word}.`,
+      `We found the ${word} in the garden.`,
+      `He likes to play with the ${word}.`,
+      `Can you pass me the ${word}?`,
+      `There is a ${word} in my room.`,
+      `My ${word} is very beautiful.`,
+      `I want to buy a ${word}.`,
+      `The ${word} looks amazing today.`,
+      `Do you have a ${word}?`,
+      `The teacher showed us a ${word}.`,
+    ]
+    const useOriginal = Math.random() < 0.3
+    const baseSentence = useOriginal && wordObj.example ? wordObj.example : clozeTemplates[Math.floor(Math.random() * clozeTemplates.length)]
+    const sentence = baseSentence.replace(new RegExp(word, 'i'), '___')
     return { sentence, answer: word, options: shuffleArray([word, ...generateDistractors(word, 3)]), hint: wordObj.meaning }
   } else if (mode === 'spelling') {
     const letters = word.split('')
@@ -321,7 +338,18 @@ function generateLocalQuestion(mode, wordObj) {
 function generateLocalQuestionExtended(mode, wordObj) {
   const word = wordObj.word
   if (mode === 'wordOrder') {
-    const sentence = wordObj.example || `I like ${word}.`
+    const wordOrderTemplates = [
+      `I saw a ${word} in the park.`,
+      `She put the ${word} on the desk.`,
+      `We found a ${word} under the tree.`,
+      `He gave me a ${word} yesterday.`,
+      `The ${word} is on the table.`,
+      `I like this ${word} very much.`,
+      `My ${word} is very big.`,
+      `Can you see the ${word}?`,
+    ]
+    const useOriginal = Math.random() < 0.3
+    const sentence = useOriginal && wordObj.example ? wordObj.example : wordOrderTemplates[Math.floor(Math.random() * wordOrderTemplates.length)]
     const words = sentence.replace(/[.,!?]/g, '').split(/\s+/)
     return {
       translation: wordObj.exampleCn || wordObj.meaning,
@@ -330,9 +358,13 @@ function generateLocalQuestionExtended(mode, wordObj) {
       correctOrder: words
     }
   } else if (mode === 'listening') {
+    // Use similar-looking distractors for better challenge
+    const allWords = levelKeys.flatMap(k => cambridgeWordBank[k].words).map(w => w.word)
+    const similar = allWords.filter(w => w !== word && (w.length === word.length || w.startsWith(word[0]))).slice(0, 10)
+    const distractors = similar.length >= 3 ? shuffleArray(similar).slice(0, 3) : generateDistractors(word, 3)
     return {
       answer: word,
-      options: shuffleArray([word, ...generateDistractors(word, 3)]),
+      options: shuffleArray([word, ...distractors]),
       meaning: wordObj.meaning
     }
   }
@@ -381,8 +413,18 @@ function getRandomFallback() {
 function generateGameFallback() {
   const modes = ['cloze', 'spelling', 'image', 'wordOrder', 'listening']
   const seq = []
+  const wordsPool = [...sessionWords.value]
+  const usedPairs = new Set()
   for (let i = 0; i < configQuestions.value; i++) {
-    seq.push({ word: sessionWords.value[i % sessionWords.value.length]?.word, wordObj: sessionWords.value[i % sessionWords.value.length], gameMode: modes[i % 5], reason: 'random' })
+    let attempts = 0
+    let wordObj, mode
+    do {
+      wordObj = wordsPool[Math.floor(Math.random() * wordsPool.length)]
+      mode = modes[Math.floor(Math.random() * modes.length)]
+      attempts++
+    } while (usedPairs.has(`${wordObj.word}-${mode}`) && attempts < 20)
+    usedPairs.add(`${wordObj.word}-${mode}`)
+    seq.push({ word: wordObj.word, wordObj, gameMode: mode, reason: 'random' })
   }
   return shuffleArray(seq)
 }
@@ -475,20 +517,18 @@ async function nextQuestion() {
   try {
     if (settings.apiKey || settings.apiProvider === 'local') {
       const opts = [settings.apiProvider, settings.apiKey, word, settings.apiBaseUrl, settings.apiModel]
-      if (currentGameMode.value === 'cloze') currentQuestion.value = await generateCloze(...opts)
-      else if (currentGameMode.value === 'spelling') currentQuestion.value = await generateSpelling(...opts)
-      else if (currentGameMode.value === 'image') currentQuestion.value = await generateImageDescription(...opts)
+     if (currentGameMode.value === 'cloze') currentQuestion.value = await generateCloze(...opts)
+     else if (currentGameMode.value === 'spelling') currentQuestion.value = await generateSpelling(...opts)
+     else if (currentGameMode.value === 'image') currentQuestion.value = await generateImageDescription(...opts)
+      else if (currentGameMode.value === 'wordOrder') currentQuestion.value = await generateWordOrder(...opts)
+      else if (currentGameMode.value === 'listening') currentQuestion.value = await generateListening(...opts)
       else currentQuestion.value = generateLocalQuestionExtended(currentGameMode.value, wordObj || { word, meaning: '', example: '', exampleCn: '' })
-    } else {
-      throw new Error('No API key')
-    }
-  } catch (e) {
-    if (currentGameMode.value === 'wordOrder' || currentGameMode.value === 'listening') {
-      currentQuestion.value = generateLocalQuestionExtended(currentGameMode.value, wordObj || { word, meaning: '', example: '', exampleCn: '' })
-    } else {
-      currentQuestion.value = generateLocalQuestion(currentGameMode.value, wordObj || { word, meaning: '', example: '', exampleCn: '' })
-    }
-  }
+   } else {
+     throw new Error('No API key')
+   }
+ } catch (e) {
+    currentQuestion.value = generateLocalQuestionExtended(currentGameMode.value, wordObj || { word, meaning: '', example: '', exampleCn: '' })
+ }
 
   if (currentGameMode.value === 'image' && currentQuestion.value) {
     currentImageUrl.value = await getWordImage(currentQuestion.value.word)

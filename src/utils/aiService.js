@@ -127,3 +127,35 @@ Return ONLY the JSON.`
   ], baseUrl, model)
   return JSON.parse(result)
 }
+
+export async function generateWordOrder(provider, apiKey, word, baseUrl, model) {
+  const prompt = `You are an English teacher. Create a sentence unscramble exercise for the word "${word}".
+Write a NEW original sentence (not a common template) that uses the word "${word}". Keep it 5-10 words, simple enough for young learners.
+
+Return JSON in this exact format:
+{"translation": "Chinese translation of the sentence", "shuffled": ["word1","word2",...], "answer": "the correct sentence", "correctOrder": ["word1","word2",...]}
+
+The shuffled array must be the same words as correctOrder but in random order. Return ONLY the JSON.`
+
+  const result = await callAI(provider, apiKey, [
+    { role: 'system', content: 'You are a helpful English teaching assistant. Always respond with valid JSON only.' },
+    { role: 'user', content: prompt }
+  ], baseUrl, model)
+  return JSON.parse(result)
+}
+
+export async function generateListening(provider, apiKey, word, baseUrl, model) {
+  const prompt = `You are an English teacher. Create a listening exercise for the word "${word}".
+Provide 4 similar-looking English words as options, one of which is "${word}".
+
+Return JSON in this exact format:
+{"answer": "${word}", "options": ["${word}", "similar1", "similar2", "similar3"], "meaning": "Chinese meaning of ${word}"}
+
+Choose distractors that look or sound similar to make it challenging. Return ONLY the JSON.`
+
+  const result = await callAI(provider, apiKey, [
+    { role: 'system', content: 'You are a helpful English teaching assistant. Always respond with valid JSON only.' },
+    { role: 'user', content: prompt }
+  ], baseUrl, model)
+  return JSON.parse(result)
+}
