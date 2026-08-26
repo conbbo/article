@@ -73,7 +73,16 @@
         </div>
         <div class="menu-body">
           <h3>{{ t('home.wordBank').value }}</h3>
-          <p>{{ t('home.wordBankDesc').value }}</p>
+         <p>{{ t('home.wordBankDesc').value }}</p>
+       </div>
+     </div>
+      <div class="menu-card menu-assessment scale-in" @click="$router.push('/assessment')">
+        <div class="menu-icon-wrap menu-icon-assessment">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        </div>
+        <div class="menu-body">
+          <h3>{{ t('nav.assessment').value }}</h3>
+          <p>{{ t('assessment.subtitle').value }}</p>
         </div>
       </div>
       <div class="menu-card menu-3 scale-in" @click="$router.push('/progress')">
@@ -229,6 +238,7 @@ onMounted(async () => {
 }
 .menu-icon-1 { background: var(--gradient-primary); color: white; }
 .menu-icon-2 { background: var(--gradient-secondary); color: white; }
+.menu-icon-assessment { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: white; }
 .menu-icon-3 { background: var(--gradient-accent); color: white; }
 .menu-icon-4 { background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; }
 

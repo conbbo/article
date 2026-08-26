@@ -40,7 +40,10 @@
           <p>{{ configWords }} words (engine-recommended) + {{ configQuestions }} adaptive questions</p>
           <p class="hint">Words due for review are prioritized. Game modes adapt to your weaknesses.</p>
         </div>
-        <button class="btn-primary start-btn" @click="startSession">{{ t('daily.start').value }}</button>
+        <div class="start-buttons">
+          <button class="btn-primary start-btn" @click="startSession">{{ t('daily.start').value }}</button>
+          <button class="btn-secondary skip-btn" @click="skipToPractice">{{ t('daily.skipToPractice').value }}</button>
+        </div>
       </div>
     </div>
 
@@ -150,6 +153,44 @@
           </div>
         </div>
 
+        <!-- Word Order (sentence unscramble) -->
+        <div v-if="currentGameMode === 'wordOrder'" class="game-content">
+          <p class="game-instruction">{{ t('daily.wordOrderInstruction').value }}</p>
+          <p class="game-hint">{{ currentQuestion.translation }}</p>
+          <div class="word-order-slots">
+            <span v-for="(w, i) in placedWords" :key="i" class="word-slot" @click="unplaceWord(i)">{{ w }}</span>
+          </div>
+          <div class="word-pool">
+            <button v-for="(w, i) in currentQuestion.shuffled" :key="i"
+              :class="['word-btn', { used: usedWordIndices[i] }]"
+              :disabled="usedWordIndices[i] || answered" @click="placeWord(i)">
+              {{ w }}
+            </button>
+          </div>
+          <div class="spelling-controls">
+            <button class="btn-secondary" @click="clearPlacedWords" :disabled="answered">{{ t('daily.clear').value }}</button>
+            <button class="btn-primary" @click="submitWordOrder" :disabled="placedWords.length === 0 || answered">{{ t('daily.submit').value }}</button>
+          </div>
+        </div>
+
+        <!-- Listening Choice -->
+        <div v-if="currentGameMode === 'listening'" class="game-content">
+          <p class="game-instruction">{{ t('daily.listeningInstruction').value }}</p>
+          <div class="listening-area">
+            <button class="listen-btn" @click="speak(currentQuestion.answer, settings.ttsRate)" :disabled="answered">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              {{ t('daily.playAudio').value }}
+            </button>
+          </div>
+          <div class="options-grid">
+            <button v-for="opt in currentQuestion.options" :key="opt"
+              :class="['option-btn', getOptionClass(opt)]"
+              :disabled="answered" @click="answerQuestion(opt)">
+              {{ opt }}
+            </button>
+          </div>
+        </div>
+
         <!-- Feedback -->
         <transition name="fade">
           <div v-if="showFeedback" class="feedback-bar" :class="feedbackType">
@@ -233,10 +274,12 @@ const sessionScore = ref(0)
 const spelledLetters = ref([])
 const usedLetters = ref([])
 
-const GAME_NAMES = { cloze: 'Cloze Fill-in', spelling: 'Spelling', image: 'Picture Match' }
+const GAME_NAMES = { cloze: 'Cloze Fill-in', spelling: 'Spelling', image: 'Picture Match', wordOrder: 'Word Order', listening: 'Listening Choice' }
 
 const currentWord = computed(() => sessionWords.value[learnIndex.value] || null)
 const currentGameName = computed(() => GAME_NAMES[currentGameMode.value] || '')
+const placedWords = ref([])
+const usedWordIndices = ref([])
 const clozeDisplay = computed(() => {
   if (!currentQuestion.value || currentGameMode.value !== 'cloze') return ''
   return currentQuestion.value.sentence.replace('___', '<span class="blank">_____</span>')
@@ -273,6 +316,27 @@ function generateLocalQuestion(mode, wordObj) {
   } else {
     return { word, description: wordObj.example, question: 'What word does this picture show?', options: shuffleArray([word, ...generateDistractors(word, 3)]), answer: word }
   }
+}
+
+function generateLocalQuestionExtended(mode, wordObj) {
+  const word = wordObj.word
+  if (mode === 'wordOrder') {
+    const sentence = wordObj.example || `I like ${word}.`
+    const words = sentence.replace(/[.,!?]/g, '').split(/\s+/)
+    return {
+      translation: wordObj.exampleCn || wordObj.meaning,
+      shuffled: shuffleArray(words),
+      answer: words.join(' '),
+      correctOrder: words
+    }
+  } else if (mode === 'listening') {
+    return {
+      answer: word,
+      options: shuffleArray([word, ...generateDistractors(word, 3)]),
+      meaning: wordObj.meaning
+    }
+  }
+  return generateLocalQuestion(mode, wordObj)
 }
 
 async function startSession() {
@@ -315,12 +379,57 @@ function getRandomFallback() {
 }
 
 function generateGameFallback() {
-  const modes = ['cloze', 'spelling', 'image']
+  const modes = ['cloze', 'spelling', 'image', 'wordOrder', 'listening']
   const seq = []
   for (let i = 0; i < configQuestions.value; i++) {
-    seq.push({ word: sessionWords.value[i % sessionWords.value.length]?.word, wordObj: sessionWords.value[i % sessionWords.value.length], gameMode: modes[i % 3], reason: 'random' })
+    seq.push({ word: sessionWords.value[i % sessionWords.value.length]?.word, wordObj: sessionWords.value[i % sessionWords.value.length], gameMode: modes[i % 5], reason: 'random' })
   }
   return shuffleArray(seq)
+}
+
+function skipToPractice() {
+  progress.setDailyConfig(configWords.value, configQuestions.value)
+  const doPrepare = () => {
+    learnIndex.value = 0
+    sessionCorrect.value = 0
+    sessionScore.value = 0
+    if (window.electronAPI) {
+      window.electronAPI.recommendQuestions(sessionWords.value, configQuestions.value).then(questions => {
+        sessionQuestions.value = questions.length > 0 ? questions : generateGameFallback()
+        phase.value = 'practice'
+        practiceIndex.value = 0
+        nextQuestion()
+      }).catch(() => {
+        sessionQuestions.value = generateGameFallback()
+        phase.value = 'practice'
+        practiceIndex.value = 0
+        nextQuestion()
+      })
+    } else {
+      sessionQuestions.value = generateGameFallback()
+      phase.value = 'practice'
+      practiceIndex.value = 0
+      nextQuestion()
+    }
+  }
+
+  if (window.electronAPI) {
+    try {
+      window.electronAPI.recommendWords(configWords.value, configLevel.value).then(r => {
+        sessionWords.value = r.length > 0 ? r : getRandomFallback()
+        doPrepare()
+      }).catch(() => {
+        sessionWords.value = getRandomFallback()
+        doPrepare()
+      })
+    } catch (e) {
+      sessionWords.value = getRandomFallback()
+      doPrepare()
+    }
+  } else {
+    sessionWords.value = getRandomFallback()
+    doPrepare()
+  }
 }
 
 async function loadImage() {
@@ -368,16 +477,26 @@ async function nextQuestion() {
       const opts = [settings.apiProvider, settings.apiKey, word, settings.apiBaseUrl, settings.apiModel]
       if (currentGameMode.value === 'cloze') currentQuestion.value = await generateCloze(...opts)
       else if (currentGameMode.value === 'spelling') currentQuestion.value = await generateSpelling(...opts)
-      else currentQuestion.value = await generateImageDescription(...opts)
+      else if (currentGameMode.value === 'image') currentQuestion.value = await generateImageDescription(...opts)
+      else currentQuestion.value = generateLocalQuestionExtended(currentGameMode.value, wordObj || { word, meaning: '', example: '', exampleCn: '' })
     } else {
       throw new Error('No API key')
     }
   } catch (e) {
-    currentQuestion.value = generateLocalQuestion(currentGameMode.value, wordObj || { word, meaning: '', example: '', exampleCn: '' })
+    if (currentGameMode.value === 'wordOrder' || currentGameMode.value === 'listening') {
+      currentQuestion.value = generateLocalQuestionExtended(currentGameMode.value, wordObj || { word, meaning: '', example: '', exampleCn: '' })
+    } else {
+      currentQuestion.value = generateLocalQuestion(currentGameMode.value, wordObj || { word, meaning: '', example: '', exampleCn: '' })
+    }
   }
 
   if (currentGameMode.value === 'image' && currentQuestion.value) {
     currentImageUrl.value = await getWordImage(currentQuestion.value.word)
+  }
+
+  if (currentGameMode.value === 'wordOrder') {
+    placedWords.value = []
+    usedWordIndices.value = new Array(currentQuestion.value?.shuffled?.length || 0).fill(false)
   }
 
   practiceLoading.value = false
@@ -426,6 +545,41 @@ function submitSpelling() {
   setTimeout(() => { showFeedback.value = false; practiceIndex.value++; nextQuestion() }, 1500)
 }
 
+function placeWord(index) {
+  if (answered.value || usedWordIndices.value[index]) return
+  usedWordIndices.value[index] = true
+  placedWords.value.push(currentQuestion.value.shuffled[index])
+}
+
+function unplaceWord(slotIndex) {
+  if (answered.value) return
+  const w = placedWords.value[slotIndex]
+  placedWords.value.splice(slotIndex, 1)
+  for (let i = currentQuestion.value.shuffled.length - 1; i >= 0; i--) {
+    if (usedWordIndices.value[i] && currentQuestion.value.shuffled[i] === w) {
+      usedWordIndices.value[i] = false
+      break
+    }
+  }
+}
+
+function clearPlacedWords() {
+  placedWords.value = []
+  usedWordIndices.value = usedWordIndices.value.map(() => false)
+}
+
+function submitWordOrder() {
+  if (answered.value || placedWords.value.length === 0) return
+  answered.value = true
+  const assembled = placedWords.value.join(' ')
+  const correct = assembled.toLowerCase() === currentQuestion.value.answer.toLowerCase()
+  if (correct) { sessionCorrect.value++; sessionScore.value += 10; feedbackType.value = 'correct'; speak(currentQuestion.value.answer, settings.ttsRate) }
+  else { feedbackType.value = 'wrong' }
+  progress.recordAnswer(correct, currentQuestion.value.answer, 'wordOrder')
+  showFeedback.value = true
+  setTimeout(() => { showFeedback.value = false; practiceIndex.value++; nextQuestion() }, 1500)
+}
+
 function resetSession() {
   phase.value = 'config'
   sessionWords.value = []
@@ -465,6 +619,17 @@ h2 { font-size: 22px; font-weight: 800; color: var(--color-text); margin-bottom:
 .config-summary p { font-size: 14px; font-weight: 600; color: var(--color-text); }
 .config-summary .hint { font-size: 13px; color: var(--color-text-muted); margin-top: 4px; font-weight: 400; }
 .start-btn { align-self: center; margin-top: 8px; padding: 14px 48px; font-size: 15px; }
+.skip-btn { padding: 14px 28px; font-size: 14px; }
+.start-buttons { display: flex; gap: 8px; justify-content: center; }
+.word-order-slots { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap; min-height: 50px; padding: 10px; border: 2px dashed #C7D2FE; border-radius: var(--radius-sm); }
+.word-slot { padding: 8px 16px; background: #E0E7FF; border-radius: var(--radius-xs); font-size: 15px; font-weight: 600; cursor: pointer; color: var(--color-primary); }
+.word-pool { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+.word-btn { padding: 8px 16px; border-radius: var(--radius-xs); background: white; border: 1px solid var(--color-border); font-size: 15px; font-weight: 600; }
+.word-btn:hover:not(:disabled) { border-color: var(--color-primary); background: #F5F3FF; }
+.word-btn.used { opacity: 0.3; cursor: not-allowed; }
+.listening-area { display: flex; justify-content: center; margin-bottom: 20px; }
+.listen-btn { display: flex; align-items: center; gap: 8px; padding: 16px 32px; background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%); color: white; border: none; border-radius: var(--radius); font-size: 16px; font-weight: 700; cursor: pointer; }
+.listen-btn:hover { opacity: 0.9; transform: translateY(-1px); }
 
 .phase-header { margin-bottom: 20px; }
 .phase-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
