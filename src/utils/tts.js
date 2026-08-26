@@ -3,6 +3,7 @@
 
 let cachedVoices = []
 let voicesReady = false
+let speakTimeout = null
 
 function loadVoices() {
   if (!('speechSynthesis' in window)) return
@@ -13,14 +14,11 @@ function loadVoices() {
   }
 }
 
-// Initialize voice loading
 if ('speechSynthesis' in window) {
   loadVoices()
-  // Chrome loads voices asynchronously
   window.speechSynthesis.onvoiceschanged = () => {
     loadVoices()
   }
-  // Some browsers need a tick
   setTimeout(loadVoices, 100)
   setTimeout(loadVoices, 500)
 }
@@ -29,7 +27,6 @@ function findBestVoice() {
   if (cachedVoices.length === 0) {
     loadVoices()
   }
-  // Prefer high-quality English voices
   return cachedVoices.find(v => v.lang === 'en-US' && v.name.includes('Google')) ||
          cachedVoices.find(v => v.lang === 'en-US') ||
          cachedVoices.find(v => v.lang.startsWith('en')) ||
@@ -39,37 +36,49 @@ function findBestVoice() {
 
 export function speak(text, rate = 0.9) {
   if (!('speechSynthesis' in window)) {
-    console.warn('[TTS] Speech synthesis not supported in this browser')
+    console.warn('[TTS] Speech synthesis not supported')
     return false
+  }
+
+  // Clear any pending speak from a previous call
+  if (speakTimeout) {
+    clearTimeout(speakTimeout)
+    speakTimeout = null
   }
 
   // Cancel any ongoing speech
   window.speechSynthesis.cancel()
+  // Resume after cancel — Chrome bug workaround
+  window.speechSynthesis.resume()
 
-  // Small delay after cancel (Chrome bug workaround)
-  setTimeout(() => {
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = 'en-US'
-    utterance.rate = rate
-    utterance.pitch = 1.0
-    utterance.volume = 1.0
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = 'en-US'
+  utterance.rate = rate
+  utterance.pitch = 1.0
+  utterance.volume = 1.0
 
-    const voice = findBestVoice()
-    if (voice) {
-      utterance.voice = voice
-    }
+  const voice = findBestVoice()
+  if (voice) {
+    utterance.voice = voice
+  }
 
-    utterance.onerror = (e) => {
-      console.warn('[TTS] Speech error:', e.error)
-    }
+  utterance.onerror = (e) => {
+    console.warn('[TTS] Speech error:', e.error)
+  }
 
+  speakTimeout = setTimeout(() => {
     window.speechSynthesis.speak(utterance)
+    speakTimeout = null
   }, 50)
 
   return true
 }
 
 export function stopSpeaking() {
+  if (speakTimeout) {
+    clearTimeout(speakTimeout)
+    speakTimeout = null
+  }
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel()
   }

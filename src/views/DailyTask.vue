@@ -274,6 +274,7 @@ const sessionScore = ref(0)
 
 const spelledLetters = ref([])
 const usedLetters = ref([])
+const pickedIndices = ref([])
 
 const GAME_NAMES = { cloze: 'Cloze Fill-in', spelling: 'Spelling', image: 'Picture Match', wordOrder: 'Word Order', listening: 'Listening Choice' }
 
@@ -508,10 +509,11 @@ async function nextQuestion() {
   selectedAnswer.value = ''
   currentQuestion.value = null
   currentImageUrl.value = ''
-  spelledLetters.value = []
-  usedLetters.value = []
+ spelledLetters.value = []
+ usedLetters.value = []
+  pickedIndices.value = []
 
-  const wordObj = q.wordObj || sessionWords.value.find(w => w.word === q.word) || sessionWords.value[practiceIndex.value % sessionWords.value.length]
+ const wordObj = q.wordObj || sessionWords.value.find(w => w.word === q.word) || sessionWords.value[practiceIndex.value % sessionWords.value.length]
   const word = wordObj?.word || q.word
 
   try {
@@ -564,13 +566,17 @@ function getOptionClass(opt) {
 function pickLetter(index) {
   if (answered.value || usedLetters.value[index]) return
   usedLetters.value[index] = true
+  pickedIndices.value.push(index)
   spelledLetters.value.push(currentQuestion.value.letters[index])
 }
 
 function removeLetter() {
   if (answered.value || spelledLetters.value.length === 0) return
-  const lastIdx = usedLetters.value.lastIndexOf(true)
-  if (lastIdx !== -1) { usedLetters.value[lastIdx] = false; spelledLetters.value.pop() }
+  const lastIdx = pickedIndices.value.pop()
+  if (lastIdx !== undefined) {
+    usedLetters.value[lastIdx] = false
+    spelledLetters.value.pop()
+  }
 }
 
 function submitSpelling() {
